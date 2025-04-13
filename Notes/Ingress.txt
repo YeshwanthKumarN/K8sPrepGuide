@@ -1,0 +1,67 @@
+elaborate this sentence
+
+If the TLS configuration section in an Ingress specifies different hosts, they are multiplexed on the same port according to the hostname specified through the SNI TLS extension (provided the Ingress controller supports SNI). 
+
+
+ChatGPT said:
+Certainly! Here's a more detailed and elaborated version of that sentence:
+
+If the TLS configuration section in an Ingress resource defines multiple hosts (i.e., different domain names), all of those hosts can still share the same port (typically port 443 for HTTPS). This is possible because modern Ingress controllers that support SNI (Server Name Indication) can distinguish between these hosts during the TLS handshake. SNI is an extension to the TLS protocol that allows the client (e.g., a web browser) to indicate the hostname it’s trying to connect to as part of the initial connection request. The Ingress controller uses this hostname information to select the appropriate TLS certificate and route the request to the correct backend service, even though all traffic arrives on the same port. This enables secure communication with multiple domains using a single Ingress resource and shared network endpoint.
+
+
+
+**************************************************************************
+
+
+
+You said:
+but why specify it exclusively for tls, before tls topic the ingress showcased examples of port 80 for different domains as part of one ingress, what difference it makes now
+
+
+ChatGPT said:
+That's a great question — and your observation is spot-on. Let’s break it down:
+
+🔸 Why Ingress can handle multiple domains on port 80 (HTTP)
+Before introducing TLS (i.e., in plain HTTP), Ingress rules commonly define multiple hosts (domains) in a single Ingress resource. When a request comes in on port 80, the Ingress controller uses the Host header in the HTTP request to route traffic to the correct backend service.
+
+So, for example:
+
+yaml
+Copy
+Edit
+host: example.com
+path: / -> service A
+
+host: another.com
+path: / -> service B
+The controller inspects the HTTP Host header to decide which rule matches.
+
+🔸 What changes with TLS (HTTPS)?
+Once TLS is introduced (i.e., traffic comes over port 443), the communication starts with a TLS handshake, before any HTTP headers (like Host) are visible. At this point, the Ingress controller doesn’t yet see the actual HTTP request — so it can’t rely on the Host header anymore.
+
+This is where SNI (Server Name Indication) comes in.
+
+SNI is a TLS extension where the client (e.g., browser or app) tells the server: “Hey, I want to talk to example.com”.
+
+The Ingress controller (if it supports SNI) uses that SNI info to:
+
+Choose the correct TLS certificate
+
+Route the request to the appropriate service
+
+So the line in the docs about hosts being multiplexed based on SNI is specifically relevant to TLS because SNI is the only way for the Ingress controller to know which domain the client wants before decrypting the traffic.
+
+🔍 In summary:
+Protocol	Port	How routing works
+HTTP	80	Uses Host header (visible in plain text)
+HTTPS	443	Uses SNI in TLS handshake (needed before decryption)
+So yes — both HTTP and HTTPS can handle multiple hosts on a single Ingress, but TLS requires extra configuration and relies on SNI to support that.
+
+Would you like a diagram or example manifest to visualize this?
+
+
+
+
+
+
+
