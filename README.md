@@ -12,3 +12,13 @@ Today's Motivatition:
 1. It’s You vs. You — a powerful truth. The real magic begins when you truly understand yourself.
 2. Instill discipline, integrity, and obedience in your character — this is a marathon, not a sprint. Don’t rush, and don’t give up.
 3. Seek a workplace that genuinely values your presence. Remember, Bodhidharma journeyed all the way from India to China for a purpose — and to this day, they honor him and uphold his teachings.
+
+14/04/2025
+1. It’s another one of those days where you’re juggling multiple things at once.
+
+15/05/2025
+1. Completed analysis of GKE and CloudRun
+
+16/04/2025
+1. Use of NEG in GKE Services
+   Purpose: CloudRun LB supports NEG, and if GKE ALB also supports NEG instead of backend. Then a single ALB is deployed to both GKE and CloudRUN services.
