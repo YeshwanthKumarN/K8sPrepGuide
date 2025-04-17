@@ -22,3 +22,7 @@ Today's Motivatition:
 16/04/2025
 1. Use of NEG in GKE Services
    Purpose: CloudRun LB supports NEG, and if GKE ALB also supports NEG instead of backend. Then a single ALB is deployed to both GKE and CloudRUN services.
+
+17/04/2025
+1. Deploying vault agent in cloud run https://github.com/kelseyhightower/serverless-vault-with-cloud-run
+2. Monitor CloudRun using DynaTrace https://docs.dynatrace.com/docs/ingest-from/google-cloud-platform/gcp-integrations/cloudrun
