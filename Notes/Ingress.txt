@@ -1,5 +1,3 @@
-elaborate this sentence
-
 If the TLS configuration section in an Ingress specifies different hosts, they are multiplexed on the same port according to the hostname specified through the SNI TLS extension (provided the Ingress controller supports SNI). 
 
 
