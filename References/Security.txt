@@ -1,0 +1,404 @@
+🟢 1–15: Kubernetes Security Basics
+------------------------------------
+
+1. What are the main security layers in Kubernetes?
+   
+    Node security (OS, runtime)
+    Pod/container security
+    Network security
+    API access control
+    Data security
+
+    GKE implements many of these via IAM, VPC, workload identity, Shielded GKE Nodes, etc.
+
+
+2. What is RBAC in Kubernetes?
+
+    Role-Based Access Control governs who can perform which actions on which resources.
+
+        kubectl create rolebinding <name> --role=<role> --user=<user> --namespace=<ns>
+
+    In GKE, you can also use Google IAM for control over cluster-admin bindings.
+
+
+3. What is the difference between Role and ClusterRole?
+
+    Role: Namespace-scoped
+
+    ClusterRole: Cluster-wide or namespace-wide
+
+
+4. How do you secure access to the Kubernetes API server?
+
+    Use RBAC
+
+    Enable audit logs
+
+    Use mTLS
+
+    Use authentication tokens or workload identity
+
+        In GKE, Cloud Audit Logs track all API activity.
+
+
+5. What is a ServiceAccount?
+    
+    1. It is an identity used by pods to communicate with the API server.
+
+    2. In GKE, use Workload Identity to map to Google IAM service accounts securely.
+
+
+6. How does Workload Identity improve security in GKE?
+
+    It eliminates the need to store credentials inside pods and uses GCP-native IAM.
+
+
+7. What is a Secret in Kubernetes?
+
+    A Kubernetes object used to store sensitive information like passwords, API keys.
+
+        apiVersion: v1
+        kind: Secret
+        type: Opaque
+
+    GKE encrypts Secrets at rest using Envelope Encryption with CMEK support.
+
+
+8. What is a ConfigMap? Can it hold secrets?
+
+    No, ConfigMap stores non-sensitive config. Secrets should go into Secret objects.
+
+
+9. How are Secrets encrypted in Kubernetes?*
+
+    By default, at rest in etcd using base64. For better security, enable KMS providers.
+
+    GKE supports CMEK (Customer Managed Encryption Keys) with Cloud KMS.
+
+
+10. How do you mount a Secret into a pod?
+    
+    As an environment variable
+
+    As a volume
+
+        volumes:
+        - name: secret-vol
+        secret:
+            secretName: mysecret
+
+
+11. How do you enforce RBAC policies in GKE?
+
+    Define Roles/ClusterRoles
+
+    Use RoleBindings
+
+    Monitor with kubectl auth can-i
+
+    Audit with GKE IAM policy analyzer
+
+
+12. What is PodSecurityContext?
+
+    Defines pod-level security options: runAsUser, runAsGroup, FSGroup.
+
+
+13. What are SecurityContext options for containers?
+
+    Control user/group ID, privilege escalation, readOnlyRootFilesystem, capabilities.
+
+        securityContext:
+        runAsNonRoot: true
+        capabilities:
+            drop: ["ALL"]
+
+
+14. What are PodSecurityPolicies (PSP)?
+
+    Legacy way to enforce pod-level security like UID, capabilities, host networking.
+
+    Deprecated; GKE recommends OPA Gatekeeper or PodSecurity Admission.
+
+
+15. What are PodSecurity Admission levels?
+
+    Privileged: Allows all
+
+    Baseline: Reasonable defaults
+
+    Restricted: Hardened setup
+
+    GKE Autopilot enforces restricted by default.
+
+
+🟡 16–35: Intermediate Security
+--------------------------------
+
+
+16. What is the principle of least privilege?
+    
+    Only give access strictly required for the task.
+
+    In GKE: Use minimal IAM roles and Kubernetes RoleBindings.
+
+
+17. How do you prevent privilege escalation in containers?
+
+    Use allowPrivilegeEscalation: false
+
+    Run as non-root
+
+    Drop all capabilities
+
+
+18. How do you secure node access?
+
+    Use Shielded GKE Nodes
+
+    Use OS Login or IAP tunneling
+
+    Disable SSH keys
+
+
+19. What is kube-bench?
+
+    A tool that checks your cluster against the CIS Kubernetes Benchmark.
+
+    Run as a pod or as part of CI/CD to ensure compliance.
+
+
+20. What is image scanning in GKE?
+
+    Cloud Container Analysis scans container images for vulnerabilities.
+
+    GKE integrates with Artifact Registry and Binary Authorization.
+
+
+21. What is Binary Authorization?
+
+    A deploy-time security control to enforce only trusted container images.
+
+
+22. What are GKE Shielded Nodes?
+
+    Provides secure boot, integrity monitoring, and vTPM for GKE nodes.
+
+
+23. How to ensure only signed images are deployed?
+
+    Enable Binary Authorization
+
+    Require attestations using Cloud Build signers
+
+
+24. How to audit who did what in a GKE cluster?
+
+        Use Cloud Audit Logs
+
+        Use kubectl auth can-i
+
+        Enable GKE Audit Logging
+
+
+25. What is Mutual TLS (mTLS)?
+
+    Ensures identity and encryption between services.
+
+    Enabled by Anthos Service Mesh or Istio in GKE.
+
+
+26. How do NetworkPolicies improve security?
+
+    They define what ingress/egress is allowed for pods.
+
+    Example:
+
+        podSelector:
+        matchLabels:
+            app: frontend
+
+
+27. How to deny all ingress to a pod by default?
+
+    Apply a default deny NetworkPolicy and only allow specific ingress.
+
+
+28. Can secrets be logged accidentally?
+
+    Yes. Avoid printing secrets to logs or storing them as env vars.
+
+
+29. How can you prevent image pull from untrusted registries?
+
+    Use Admission controllers
+
+    Restrict imagePullSecrets
+
+    Use Binary Authorization
+
+
+30. What is an Admission Controller?
+
+    Intermediary that modifies or denies requests to the API server.
+
+    Example: OPA Gatekeeper for custom policy enforcement.
+
+
+31. What is OPA Gatekeeper?
+
+    Policy-as-code engine using Rego for enforcing Kubernetes security policies.
+
+
+32. How can you prevent container breakout attacks?
+
+    Run containers as non-root
+
+    Harden node OS
+
+    Use GKE sandboxing (gVisor)
+
+
+33. What is GKE Sandboxed Node Pool?
+
+    Isolated environment using gVisor to protect host kernel from container access.
+
+
+34. What is Node Auto-Repair?
+
+    Monitors unhealthy nodes and replaces them—important for node hardening compliance.
+
+
+35. What is a Pod Disruption Budget (PDB) in terms of availability/security?
+
+    Prevents voluntary disruptions that might reduce availability below acceptable threshold.
+
+
+🔴 36–50: Advanced + Scenario-Based Security
+---------------------------------------------
+
+
+36. How do you protect secrets at runtime?
+
+    Avoid env vars
+
+    Mount as readOnly
+
+    Use GKE Secret Manager integration
+
+
+37. How do you detect compromised containers?*
+
+    Use Cloud IDS
+
+    Integrate with Cloud Logging and Security Command Center
+
+    Leverage runtime security tools like Falco or Sysdig
+
+
+38. How do you ensure secure CI/CD pipeline to GKE?
+
+    Sign images
+
+    Scan with Cloud Build
+
+    Enforce via Binary Authorization
+
+
+39. How to rotate Secrets in Kubernetes?
+
+    Use External Secret Managers
+
+        Restart pods after secret update
+
+    Automate rotation via external controllers
+
+
+40. How to block image execution from public Docker Hub?
+
+    Use admission controller to deny image paths from public registries
+
+
+41. How do you limit pod access to host resources?
+
+    Set hostNetwork: false, hostPID: false, hostIPC: false
+
+    Don’t mount /proc, /dev, /sys
+
+
+42. How to handle unauthorized API access attempts?
+
+    Audit logs
+
+    kubectl auth can-i
+
+    OPA Gatekeeper or custom webhooks
+
+
+43. How do you ensure network isolation in GKE multi-tenant clusters?
+
+    Use Namespaces + NetworkPolicies
+
+    Use dedicated NodePools
+
+    Use Workload Identity per tenant
+
+
+44. What are potential attack vectors in Kubernetes?
+
+    Misconfigured RBAC
+
+    Open etcd
+
+    Lack of pod isolation
+
+    Exposed Kubelet
+
+
+45. How to restrict users from creating privileged pods?
+
+    Use OPA policies
+
+    Block privileged: true in SecurityContext
+
+
+46. How to enforce all pods to use a specific security context?*
+
+    Write a Gatekeeper constraint template
+
+
+47. How can you enforce encryption in-transit within the cluster?
+
+    Use mTLS with ASM/Istio
+
+    Encrypt service traffic (gRPC, HTTPS)
+
+
+48. How to ensure non-root containers are enforced across all pods?
+
+    Gatekeeper constraint:
+
+        spec.securityContext.runAsNonRoot == true
+
+
+49. How to prevent users from deploying workloads to kube-system?
+
+    Restrict access via:
+
+        RBAC
+
+        Gatekeeper constraint on namespaces
+
+
+50. How to enforce CIS Benchmarks automatically in GKE?
+
+    Use GKE Autopilot (compliant by default)
+
+    Run kube-bench in CI/CD
+
+    Use Security Posture dashboard in Google Cloud Console
+
+
+Prompt:
+
+        Research and consolidate the 50 most commonly asked questions on security for kubernetes in the interviews from basic to advanced with neat explaination, if possible with an example too. help me improve my understanding of this subject with your questions, i must be able to digest the most complex scenario based question with ease. I'm setting the hard limit of 50 but feel free to extend if its necessary. preferrably use gke in your examples as my interview is on gke. remember do not compromise this subject, I need to excel it in the interview.

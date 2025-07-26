@@ -1,0 +1,390 @@
+Basic Networking Concepts (1–15)
+---------------------------------
+
+1. What is the Kubernetes networking model?
+
+    Kubernetes assumes:
+
+        Every pod gets its own IP address.
+
+        Pods can communicate with all other pods without NAT.
+
+        Containers in the same pod share network namespace.
+
+    ✅ GKE uses VPC-native networking with alias IP ranges for pods and services.
+
+
+2. What is a ClusterIP service?
+
+    The default Service type. It’s accessible only within the cluster.
+
+    Used for internal services like databases or internal APIs.
+
+
+3. What is a NodePort service?
+
+    Exposes the service on a static port (30000–32767) on each Node’s IP.
+
+    Not ideal for production in GKE—use LoadBalancer instead.
+
+
+4. What is a LoadBalancer service?
+
+    Automatically provisions a Google Cloud Load Balancer to route traffic to your service.
+
+    Most common method for exposing apps externally in GKE.
+
+
+5. What is a Headless Service?
+
+    Set clusterIP: None. DNS returns pod IPs directly instead of a virtual IP.
+
+    Used with StatefulSets, where clients need direct access to pod endpoints.
+
+
+6. How does DNS work in Kubernetes?
+
+    Every service gets a DNS entry.
+
+    Format: <svc>.<namespace>.svc.cluster.local
+
+    Powered by CoreDNS
+
+    GKE configures DNS by default and integrates with Cloud DNS in hybrid setups.
+
+
+7. How do pods communicate with each other?
+
+    They use the overlay network (CNI) which provides flat networking.
+
+    GKE uses VPC-native (alias IP) networking to map pod IPs directly into the VPC.
+
+
+8. What are kube-proxy and its modes?
+
+    Handles service routing:
+
+    iptables: Default mode.
+
+    IPVS: Scalable alternative.
+
+    In GKE, kube-proxy is managed by Google and runs in IPTables mode by default.
+
+
+9. How is pod IP assigned?
+
+    Pod IPs are allocated from secondary IP ranges (alias IPs) in the VPC in GKE.
+
+
+10. What is a CNI plugin?
+
+    Container Network Interface plugin provides IPAM and routing logic.
+
+    GKE uses Google’s native CNI which integrates tightly with VPC alias IPs.
+
+
+11. What’s the role of VPC-native vs Routes-based clusters in GKE?
+
+    VPC-native: Pod IPs are native to VPC; recommended.
+
+    Routes-based: Uses custom routes; legacy.
+
+
+12. How does traffic flow from the internet to a pod in GKE?
+
+    Internet → Load Balancer → NodePort → kube-proxy → Pod IP
+
+    GKE abstracts most of this via ingress controllers or LoadBalancer.
+
+
+13. What is kube-dns or CoreDNS?
+
+    Pods responsible for service discovery via DNS.
+
+    GKE uses CoreDNS as default from v1.12+.
+
+
+14. What are endpoints in Kubernetes?
+
+    An object that stores the list of pod IPs behind a service.
+
+        kubectl get endpoints <service>
+
+
+15. How does Kubernetes resolve a service name?
+
+    It queries CoreDNS, which resolves the service name into the cluster IP or pod IP (headless).
+
+
+ Intermediate Topics (16–35)
+ -----------------------------
+
+
+16. What is Ingress in Kubernetes?
+
+    Ingress manages HTTP/HTTPS traffic routing to services using defined rules.
+
+    GKE offers native Ingress, Gateway API, and Istio.
+
+
+17. How does GKE implement Ingress?
+    
+    It provisions a GCP HTTP(S) Load Balancer, which routes traffic to backend pods via NodePort.
+
+
+18. What is the Gateway API in Kubernetes?
+
+    Successor to Ingress, provides more control:
+
+        Gateways
+
+        Routes
+
+        Listeners
+
+    GKE supports Gateway API GA from 1.27.
+
+
+19. What is a NetworkPolicy?
+
+    Allows you to control which pods/services can talk to which.
+
+    GKE supports Calico plugin and integrates it with VPC-native networking.
+
+
+20. What is Calico?
+
+    An open-source CNI that enables NetworkPolicy enforcement.
+
+    In GKE, used behind the scenes when network policy enforcement is enabled.
+
+
+21. How do you apply a NetworkPolicy in GKE?
+
+        kind: NetworkPolicy
+        spec:
+        podSelector:
+            matchLabels:
+            app: frontend
+        ingress:
+            - from:
+                - podSelector:
+                    matchLabels:
+                    app: backend
+
+
+22. What happens when no NetworkPolicy is defined?
+
+    All pods can communicate with all others (default allow-all).
+
+
+23. What happens when a pod tries to access a service in another namespace?
+
+    It can access it using: <service-name>.<namespace>.svc.cluster.local
+
+    Cross-namespace access is possible unless restricted by NetworkPolicy or RBAC.
+
+
+24. How do you restrict external egress from a pod?
+  
+    Use NetworkPolicies
+
+    Use Cloud NAT rules to block/allow
+
+    Use Firewall rules at VPC level
+
+
+25. What is IP masquerading and how is it handled in GKE?
+
+    IP masquerading (SNAT) is used when pods send traffic to IPs outside the cluster.
+
+    GKE uses ip-masq-agent to control SNAT behavior.
+
+
+26. What is source IP preservation in Kubernetes?*
+
+    If using LoadBalancer, the original client IP is not preserved unless:
+
+            ExternalTrafficPolicy is set to Local
+
+            Pod is directly on the node
+
+
+27. What is ExternalTrafficPolicy?
+
+Preserves client IP but only routes traffic to nodes with active pods.
+
+        spec:
+          externalTrafficPolicy: Local
+
+
+28. What is internal load balancing in GKE?
+
+        annotations:
+        cloud.google.com/load-balancer-type: "Internal"
+    
+    This creates a GCP Internal TCP/UDP Load Balancer.
+
+
+29. How does DNS resolution work with headless services?
+
+    DNS returns A records for each pod IP, enabling client-side load balancing.
+
+
+30. Can you use static IPs in GKE services?
+
+    Yes. Reserve a static IP and reference it via annotation or Ingress configuration.
+
+
+31. How do StatefulSets handle networking?*
+
+    Each pod gets a stable DNS name:
+
+        <pod-name>.<service-name>.<namespace>.svc.cluster.local
+
+
+32. How does GKE handle pod IP exhaustion?
+   
+    Subnet secondary IP range exhausted
+
+    Cluster autoscaler can't add IPs
+
+Resolve by expanding the secondary range or enabling IP alias overprovisioning
+
+
+33. What is a pod CIDR and service CIDR in GKE?
+
+    Pod CIDR: Secondary range for pod IPs.
+
+    Service CIDR: Used internally; default /20 block.
+
+
+34. What is alias IP in GKE?
+
+    GCP feature allowing VMs to have multiple IPs for routing to Kubernetes Pods.
+
+    Enables VPC-native clusters.
+
+
+35. What happens if two pods have the same IP?
+
+    Kubernetes prevents it, but in a misconfigured CNI or overlapping CIDRs, routing issues and packet drops occur.
+
+
+🔴 Advanced Scenarios (36–50)
+-------------------------------
+
+36. How to troubleshoot why a pod cannot reach another pod?
+ 
+    Check kubectl get netpol
+
+    iptables -L
+
+    Confirm IPs via kubectl describe pod
+
+    Use tcpdump in debug containers
+
+
+37. How do you restrict ingress access to only a certain namespace?
+
+    Use a NetworkPolicy with a namespaceSelector.
+
+
+38. What are egress policies?
+
+    Define what destinations pods can reach (e.g., internet, internal IPs).
+
+
+39. What is DNS round robin in Kubernetes?
+
+    For services with multiple pods, DNS returns multiple A records.
+
+    Clients resolve and choose one randomly.
+
+
+40. How to debug DNS resolution in a pod?
+
+    kubectl exec -it <pod> -- nslookup <service>
+
+41. How to make a GKE service accessible only from internal IPs?
+
+    Use Internal Load Balancer with cloud.google.com/load-balancer-type: "Internal"
+
+
+42. How do you handle multi-cluster networking in GKE?
+
+    Use GKE multi-cluster services
+
+    Use VPN / VPC Peering for communication
+
+    Use Anthos Service Mesh
+
+
+43. What is Ingress with HTTPS?
+
+    Use a TLS secret with Ingress:
+
+            tls:
+            - hosts:
+                - app.example.com
+              secretName: tls-secret
+
+
+44. How to route traffic based on URL paths in GKE?
+
+    Use Ingress rules:
+
+        paths:
+        - path: /api
+        backend:
+            serviceName: api-service
+
+
+45. How to block traffic from specific external IPs in GKE?
+
+Use:
+
+    GCP firewall rules
+    External load balancer with NEG and Cloud Armor
+
+
+46. How to allow pod-to-pod traffic but deny all egress to internet?
+
+    Use NetworkPolicy allowing only internal CIDR
+
+    Block NAT traffic via IP Masq agent or VPC firewall
+
+
+47. How to scale GKE networking performance?*
+   
+    Enable IPVS mode in kube-proxy
+
+    Use container-native load balancing
+
+    Use dedicated node pools for ingress
+
+
+48. How does Ingress handle sticky sessions?
+
+    Enable sessionAffinity: ClientIP or use backend-specific annotations (e.g., for NGINX ingress).
+
+
+49. What are container-native load balancers in GKE?
+
+    LBs that point directly to pod IPs using Network Endpoint Groups (NEG).
+
+
+50. How to monitor network traffic in GKE?
+   
+    VPC Flow Logs
+
+    Cloud Logging with FluentBit
+
+    Istio/Anthos Service Mesh metrics
+
+    Use kubectl sniff or eBPF tools for deeper packet inspection.
+
+
+Prompt:
+
+        Research and consolidate the 50 most commonly asked questions on networking for kubernetes in the interviews from basic to advanced with neat explaination, if possible with an example too. help me improve my understanding of this subject with your questions, i must be able to digest the most complex scenario based question with ease. I'm setting the hard limit of 50 but feel free to extend if its necessary. preferrably use gke in your examples as my interview is on gke. remember do not compromise this subject, I need to excel it in the interview.
