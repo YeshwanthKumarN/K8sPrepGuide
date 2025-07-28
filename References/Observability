@@ -1,0 +1,263 @@
+1–15: Observability Fundamentals
+1. What is observability in Kubernetes?
+It’s the ability to understand the internal state of your system using external outputs such as logs, metrics, and traces.
+
+2. What are the pillars of observability?
+Logs: Detailed event records.
+
+Metrics: Numeric data over time.
+
+Traces: Contextual data showing how requests flow.
+
+3. What is Cloud Operations Suite (formerly Stackdriver)?
+Google’s integrated platform for monitoring, logging, error reporting, and debugging.
+
+GKE clusters natively integrate with Cloud Logging and Monitoring.
+
+4. What is the difference between logging and monitoring?
+Logging: Stores detailed event data.
+
+Monitoring: Uses numeric indicators to track system health.
+
+5. How are logs collected in Kubernetes?
+Kubelet streams logs from containers to stdout/stderr. A log agent (like Fluent Bit) ships them to a backend.
+
+GKE uses Ops Agent or Fluent Bit DaemonSet by default.
+
+6. Where can you view logs for a pod in GKE?
+GKE Console → Workloads → Logs
+
+kubectl logs <pod>
+
+7. How do you stream live logs from a pod?
+bash
+Copy
+Edit
+kubectl logs -f <pod-name>
+8. How does GKE store logs?
+Logs are sent to Cloud Logging, where you can query using Log Explorer.
+
+9. What is Fluent Bit?
+A lightweight, extensible log shipper used in Kubernetes DaemonSets to collect and forward logs.
+
+10. What are metrics in Kubernetes?
+Time-series data representing system/resource states like CPU usage, memory, requests, etc.
+
+11. What is Prometheus?
+An open-source monitoring tool used to scrape and store time-series metrics.
+
+GKE offers Managed Prometheus with built-in exporters and scaling.
+
+12. What is a metrics exporter in Kubernetes?
+A sidecar or agent that exposes metrics in Prometheus format.
+
+Common exporters: node-exporter, kube-state-metrics, cAdvisor
+
+13. How does GKE collect metrics by default?
+System metrics: via Cloud Monitoring Agent
+
+Workload metrics: via Managed Prometheus
+
+14. What is kube-state-metrics?
+Exposes cluster object states as metrics, e.g., Deployment replica status, node conditions, etc.
+
+15. What is a Service Level Indicator (SLI)?
+A specific metric that indicates performance or availability, e.g., 99.9% request success rate.
+
+🟡 16–35: Intermediate Observability Topics
+16. What is a Service Level Objective (SLO)?
+A target for an SLI (e.g., 99.95% availability over 30 days).
+
+In GKE, Cloud Monitoring SLO dashboards help track them.
+
+17. What is a Service Level Agreement (SLA)?
+An external-facing commitment to customers based on SLOs.
+
+18. What is tracing in Kubernetes?
+It tracks how a request moves through microservices using trace IDs.
+
+GKE supports Cloud Trace, Jaeger, and OpenTelemetry.
+
+19. What is OpenTelemetry?
+A vendor-neutral standard for collecting traces, metrics, and logs.
+
+GKE supports OpenTelemetry Collector as a sidecar or gateway deployment.
+
+20. What is a span in distributed tracing?
+A span represents a unit of work. Multiple spans form a trace tree of a request's path.
+
+21. What is Cloud Trace?
+Google’s distributed tracing system that helps you visualize latency and bottlenecks in GKE workloads.
+
+22. How do you enable tracing in GKE services?
+Use instrumentation libraries (OpenTelemetry SDKs)
+
+Use GCP libraries that auto-collect trace context
+
+23. What is cAdvisor?
+A container monitoring tool embedded in the kubelet to expose pod and container metrics.
+
+24. How to expose custom application metrics?
+Use frameworks like Prometheus client libraries (Go, Python, Java) and expose at /metrics.
+
+25. What is Alerting in Cloud Monitoring?
+A configurable rule to notify when a metric breaches a threshold.
+
+Alerts can be sent to email, PagerDuty, Slack, or Pub/Sub.
+
+26. What is a dashboard in Cloud Monitoring?
+A visual interface to track cluster health, metrics, and trends.
+
+GKE provides prebuilt dashboards out of the box.
+
+27. What is a Log-based Metric?
+Custom metric derived from logs that matches a filter.
+
+E.g., count number of 5xx responses per service.
+
+28. What is uptime check in GKE Monitoring?
+A check from Google probes to your endpoints to ensure they are responsive.
+
+29. How does Managed Prometheus in GKE work?
+Prometheus scrapes exporters
+
+GKE stores data in Cloud Monitoring time-series backend
+
+No need to manage long-term storage
+
+30. What is GKE Usage Metering?
+It provides visibility into usage-based cost breakdown by namespace, label, or service.
+
+31. How do you collect logs from multiple containers in a pod?
+Use container-specific log stream:
+
+bash
+Copy
+Edit
+kubectl logs <pod> -c <container-name>
+32. What is kubectl top?
+A CLI tool that shows metrics from the metrics-server:
+
+bash
+Copy
+Edit
+kubectl top pod
+kubectl top node
+33. What is the role of metrics-server?
+Provides resource usage metrics to the Kubernetes API (used by HPA, kubectl top).
+
+34. What is Horizontal Pod Autoscaler (HPA)?
+Scales pods based on CPU/memory/custom metrics.
+
+Requires metrics-server and/or custom metrics API.
+
+35. What are best practices for logs in GKE?
+Write to stdout/stderr
+
+Use structured JSON logs
+
+Avoid sensitive data
+
+Use labels for filtering
+
+🔴 36–50: Advanced + Scenario-Based Observability
+36. How to trace a failed request across services?
+Inject trace headers (X-Request-ID, X-Cloud-Trace-Context)
+
+Use Cloud Trace
+
+Correlate logs using request IDs
+
+37. What are structured logs and why are they useful?
+Logs in key-value (usually JSON) format allow filtering, alerting, and metric extraction.
+
+GKE supports structured logs natively.
+
+38. How to create alerts from logs in GKE?
+Define a log-based metric
+
+Set up an alerting policy on it
+
+39. How to monitor service-to-service latency in GKE?
+Use:
+
+Cloud Trace
+
+Prometheus histograms
+
+Service Mesh telemetry (e.g., Istio)
+
+40. How to diagnose memory leaks in a GKE workload?
+Monitor memory metrics with Prometheus or Cloud Monitoring
+
+Enable heap profiling (Go, Java apps)
+
+Use container restart counts
+
+41. How to detect pod flapping (CrashLoopBackOff)?
+Set alert:
+
+promql
+Copy
+Edit
+increase(kube_pod_container_status_restarts_total[5m]) > 2
+42. How to troubleshoot an app with no logs in Cloud Logging?
+Ensure pod is writing to stdout/stderr
+
+Check logging agent health
+
+Check if logs are filtered by retention or exclusion rules
+
+43. How to monitor HTTP error rate in a GKE app?
+Use structured logs with status codes
+
+Create a log-based metric for 5xx responses
+
+Visualize and alert on it
+
+44. How to monitor DNS resolution issues in pods?
+Enable VPC Flow Logs
+
+Use kubectl exec and nslookup
+
+Check for kube-dns or CoreDNS errors in logs
+
+45. How to detect noisy neighbors (resource hogs)?
+Use kubectl top or Prometheus
+
+Sort metrics by usage per namespace/pod
+
+Alert on usage spikes
+
+46. How to correlate logs and metrics for a single request?
+Add a request ID in logs and metrics
+
+Use tracing tools (e.g., Cloud Trace, Jaeger)
+
+Use GKE Cloud Logging Trace integration
+
+47. What is Google Cloud Managed Service for Prometheus (GMP)?
+Fully managed, scalable, and secure Prometheus stack on GCP.
+
+No self-hosting or long-term storage issues.
+
+48. How to enforce audit logging in GKE?
+Enable Admin Activity Audit Logs (enabled by default)
+
+Enable Data Access Logs
+
+Export to BigQuery or SIEM tools
+
+49. How to monitor network traffic in GKE?
+Use VPC Flow Logs
+
+Use Cloud Monitoring dashboards
+
+Use eBPF-based tools like Cilium + Hubble
+
+50. How to detect and analyze failed deployments?
+Use kubectl rollout status
+
+Alert on DeploymentUnavailable conditions
+
+Correlate with logs and events

@@ -1,0 +1,1022 @@
+ 1. What is Terraform, and how does it work?
+
+Answer:
+
+    Terraform is an open-source Infrastructure as Code (IaC) tool developed by HashiCorp. It allows you to define and provision infrastructure using declarative configuration files (usually .tf files).
+
+    It works in the following stages:
+
+    Write: You define infrastructure in .tf files.
+
+    Plan: Terraform shows you what changes it will make.
+
+    Apply: Executes the changes and provisions infrastructure.
+
+    State: Maintains a state file to track the current infrastructure state.
+
+Example:
+Provisioning a GKE cluster:
+
+    resource "google_container_cluster" "primary" {
+    name     = "gke-cluster"
+    location = "us-central1"
+    initial_node_count = 1
+    }
+
+
+2. What are Terraform Providers?
+
+Answer:
+
+    Providers are plugins that interact with APIs of cloud platforms and other services. Each provider manages a specific resource type (e.g., GCP, AWS, Kubernetes).
+
+    In GKE, you'd typically use:
+
+        google provider (for GCP resources like GKE clusters)
+
+        kubernetes provider (for Kubernetes resources inside the cluster)
+
+Example:
+
+    provider "google" {
+    project = var.project_id
+    region  = var.region
+    }
+
+    provider "kubernetes" {
+    host                   = google_container_cluster.primary.endpoint
+    token                  = data.google_client_config.default.access_token
+    cluster_ca_certificate = base64decode(google_container_cluster.primary.master_auth[0].cluster_ca_certificate)
+    }
+
+
+3. What is Terraform State? Why is it important?
+
+Answer:
+
+    Terraform uses a state file (terraform.tfstate) to map your configuration to real infrastructure. It knows what resources exist and how they are configured.
+
+    Importance:
+
+        Tracks resource metadata
+        Detects drift
+        Enables diffs during plan and apply
+
+    Best Practice (GKE context): Always store state remotely (e.g., in GCS) when working in teams.
+
+        terraform {
+        backend "gcs" {
+            bucket  = "gke-terraform-state"
+            prefix  = "terraform/state"
+        }
+        }
+
+    
+4. What is the difference between terraform plan and terraform apply?
+
+    Command	Purpose
+        terraform plan	Shows what actions Terraform would take
+        terraform apply	Executes the actions (provisions/updates/deletes)
+
+    Use case:
+        Always run terraform plan in CI/CD pipelines to review infrastructure changes before applying.
+
+
+ 5. How do you manage multiple environments (e.g., dev, staging, prod)?
+
+Answer:
+
+    You can use:
+    
+        Workspaces: Logical partitions of state
+
+        Directory structure + variable files: More control over environment-specific configurations
+
+            Example using workspaces:
+
+                terraform workspace new dev
+                terraform apply -var-file=dev.tfvars
+
+
+6. What is a Terraform Module and why use it?
+
+Answer:
+
+    A module is a reusable Terraform component. It helps manage complex infrastructure with DRY (Don't Repeat Yourself) principles.
+
+        GKE Example:
+            You could have a GKE module:
+
+                module "gke" {
+                source         = "./modules/gke"
+                cluster_name   = "my-cluster"
+                node_count     = 3
+                }
+
+            Directory structure:
+
+                modules/
+                gke/
+                    main.tf
+                    variables.tf
+                    outputs.tf
+
+
+7. How do you manage secrets in Terraform (e.g., service account keys)?
+
+Answer:
+    
+    Avoid hardcoding secrets in .tf files or state.
+
+    Options:
+
+        Use environment variables (TF_VAR_...)
+
+        Use Secret Manager or tools like Vault
+
+        Use Google Workload Identity to avoid managing credentials manually
+
+    Bad example:
+
+        variable "sa_key" {
+        default = "hardcoded-json-key"
+        }
+
+    Better:
+
+        Use google_service_account_key to auto-generate keys, or use Workload Identity.
+
+
+8. How do you handle changes in GKE node pools using Terraform?
+
+Answer:
+
+    Node pools are separate resources. Modifying certain fields (e.g., machine type) triggers re-creation.
+
+        Use lifecycle block if needed:
+
+            resource "google_container_node_pool" "default" {
+            name       = "my-node-pool"
+            cluster    = google_container_cluster.primary.name
+            node_count = 3
+
+            node_config {
+                machine_type = "e2-medium"
+            }
+
+            lifecycle {
+                create_before_destroy = true
+            }
+            }
+
+
+9. What is the purpose of terraform init?
+
+Answer:
+
+    terraform init prepares the working directory by:
+
+        Downloading providers
+        Initializing modules
+        Setting up the backend
+
+    Must be run before plan/apply.
+
+
+10. What are some best practices when provisioning GKE clusters using Terraform?
+
+Answer:
+
+    Use modules to separate cluster and workload definitions
+
+    Use remote backends for state
+
+    Enable node auto-repair and auto-upgrade
+
+    Use labels and taints to manage workloads
+
+    Store sensitive outputs carefully (e.g., credentials)
+
+    Prefer Workload Identity over keys
+
+
+11. What is the difference between count and for_each in Terraform? When would you use each?
+
+Answer:
+
+    Feature	        count	                                for_each
+    --------------------------------------------------------------------
+    Type	        Index-based	                            Key-based
+    Use case	    Create multiple copies of a resource	Create resources with specific names/keys
+    Limitations	    Cannot use maps/sets directly	        Cannot use simple index numbers
+
+    Example (for_each with node pools):
+
+        variable "node_pools" {
+        default = {
+            "np1" = "e2-medium"
+            "np2" = "e2-highmem-2"
+        }
+        }
+
+        resource "google_container_node_pool" "pools" {
+            for_each = var.node_pools
+
+                name    = each.key
+                cluster = google_container_cluster.primary.name
+
+        node_config {
+            machine_type = each.value
+        }
+        }
+
+
+12. How does Terraform handle remote backends? Why are they important?
+
+Answer:
+
+    Remote backends (like GCS, S3, Azure Blob) store the terraform.tfstate file outside your local machine, making it accessible to teams and protecting it from loss.
+
+    Benefits:
+
+        Collaboration
+        Locking (prevents race conditions)
+        State versioning
+
+    GCS backend example:
+
+            terraform {
+            backend "gcs" {
+                bucket  = "gke-tf-state"
+                prefix  = "gke/prod"
+            }
+            }
+
+
+13. What is a dynamic block in Terraform? How does it help?
+
+Answer:
+
+    dynamic blocks allow you to generate nested blocks programmatically, useful when the number of blocks varies.
+
+    Example:
+
+            variable "tags" {
+            default = ["env", "team", "project"]
+            }
+
+            resource "google_compute_instance" "example" {
+            name         = "vm"
+            machine_type = "e2-medium"
+            zone         = "us-central1-a"
+
+            dynamic "metadata" {
+                for_each = var.tags
+                content {
+                key   = metadata.value
+                value = "example"
+                }
+            }
+            }
+
+
+14. What happens if you delete the Terraform state file?
+
+Answer:
+
+    Terraform "forgets" about existing resources. On next plan/apply, it may try to recreate them, leading to duplicate or conflicting infrastructure.
+
+    Best Practice:
+
+        Always backup state
+
+        Use terraform import to re-sync state if lost
+
+
+15. What is terraform import and how is it used in GKE context?
+
+Answer:
+
+    terraform import allows you to bring existing infrastructure under Terraform management.
+
+    Example:
+
+        If you created a GKE cluster manually:
+
+        terraform import google_container_cluster.primary projects/my-project/locations/us-central1/clusters/my-cluster
+        You must write the resource block in .tf beforehand.
+
+
+16. How do you provision Kubernetes resources (like Deployments or Services) using Terraform?
+
+Answer:
+
+    Use the kubernetes provider once the cluster is provisioned.
+
+    Example:
+
+                provider "kubernetes" {
+                host                   = google_container_cluster.primary.endpoint
+                token                  = data.google_client_config.default.access_token
+                cluster_ca_certificate = base64decode(google_container_cluster.primary.master_auth[0].cluster_ca_certificate)
+                }
+
+                resource "kubernetes_deployment" "nginx" {
+                metadata {
+                    name = "nginx-deploy"
+                }
+
+                spec {
+                    replicas = 2
+                    selector {
+                    match_labels = {
+                        app = "nginx"
+                    }
+                    }
+
+                    template {
+                    metadata {
+                        labels = {
+                        app = "nginx"
+                        }
+                    }
+
+                    spec {
+                        container {
+                        name  = "nginx"
+                        image = "nginx:latest"
+                        }
+                    }
+                    }
+                }
+                }
+
+
+
+17. How do you handle Terraform drift?
+
+Answer:
+
+    Drift occurs when infrastructure changes outside Terraform.
+
+    Detection:
+    Run terraform plan — it will show differences between actual and expected state.
+
+    Resolution:
+
+        Re-apply correct configuration
+
+        Use terraform refresh
+
+        Use tools like Terraform Drift Detection in CI/CD pipelines
+
+
+✅ 18. What are locals in Terraform and how are they used?
+
+Answer:
+
+    locals allow you to define intermediate variables or expressions.
+
+    Example:
+
+        locals {
+        cluster_name = "${var.env}-gke-cluster"
+        }
+
+        resource "google_container_cluster" "main" {
+        name     = local.cluster_name
+        location = var.region
+        }
+
+        Useful for DRY configs and consistent naming.
+
+
+✅ 19. How do you integrate Terraform with CI/CD pipelines?
+
+Answer:
+
+    Integrate using GitHub Actions, GitLab CI, Cloud Build, Jenkins, etc.
+
+    Typical flow:
+
+            terraform init
+
+            terraform validate
+
+            terraform plan → save output
+
+            Approval step (optional)
+
+            terraform apply
+
+    Best Practices:
+
+            Store credentials securely (e.g., Workload Identity for GCP)
+
+            Use remote backend
+
+            Lock state to prevent concurrent runs
+
+
+✅ 20. What is the lifecycle block in Terraform, and when do you use it?
+
+Answer:
+
+    The lifecycle block controls resource behavior during changes.
+
+    Common attributes:
+
+                create_before_destroy – useful for avoiding downtime
+
+                prevent_destroy – avoid accidental deletions
+
+                ignore_changes – skip updates for specific fields
+
+        Example (GKE node pool):
+
+                resource "google_container_node_pool" "default" {
+                name    = "np1"
+                cluster = google_container_cluster.primary.name
+
+                node_config {
+                    machine_type = "e2-standard-2"
+                }
+
+                lifecycle {
+                    create_before_destroy = true
+                    prevent_destroy        = false
+                }
+                }
+
+
+21. What are Terraform modules? How and why would you use them in GKE deployments?
+
+Answer:
+
+    Modules are reusable Terraform configurations. They allow you to standardize infrastructure components like GKE clusters, VPCs, or node pools.
+
+    Benefits:
+
+            Reuse and consistency
+            Encapsulation
+            Cleaner main configuration
+
+    Example structure:
+
+            .
+            ├── main.tf
+            ├── modules/
+            │   └── gke/
+            │       ├── main.tf
+            │       ├── variables.tf
+            │       └── outputs.tf
+           
+            Usage in root module:
+
+                    module "gke" {
+                    source     = "./modules/gke"
+                    cluster_name = "prod-cluster"
+                    region       = "us-central1"
+                    }
+
+
+22. How do you use output variables in Terraform?
+
+Answer:
+
+    Outputs expose values from a Terraform module or root configuration.
+
+    Use cases:
+
+        Show useful info post-deployment (e.g., cluster endpoint)
+
+        Pass data between modules
+
+    Example:
+
+            output "cluster_endpoint" {
+            value = google_container_cluster.primary.endpoint
+            }
+
+
+23. How do you manage sensitive variables like service account keys in Terraform?
+Answer:
+
+    Avoid hardcoding secrets in .tf files.
+
+    Best Practices:
+
+            Use sensitive = true for variables
+
+            Store secrets in Secret Manager, Vault, or use Workload Identity
+
+            Load values from CI/CD or terraform.tfvars excluded via .gitignore
+
+                        variable "gcp_credentials" {
+                        type      = string
+                        sensitive = true
+                        }
+
+                        provider "google" {
+                        credentials = var.gcp_credentials
+                        }
+
+
+24. What happens when you change a resource's immutable field in Terraform?
+
+Answer:
+
+        Terraform will destroy and recreate the resource. This may cause downtime if not handled carefully.
+
+        Example:
+
+                Changing region of a GKE cluster requires full recreation.
+
+        Mitigation:
+
+                Use create_before_destroy where supported
+
+        Design to tolerate recreation (e.g., blue/green deployment)
+
+
+25. How do you provision multiple GKE clusters using modules and Terraform?
+
+Answer:
+
+    Use for_each with module calls:
+
+            variable "clusters" {
+            default = {
+                "dev"  = "us-central1"
+                "prod" = "us-east1"
+            }
+            }
+
+            module "gke_clusters" {
+            for_each    = var.clusters
+            source      = "./modules/gke"
+            cluster_name = each.key
+            region       = each.value
+            }
+
+    This approach scales well for multi-cluster setups.
+
+
+26. How do you manage secrets in Kubernetes using Terraform?
+
+Answer:
+
+    Use the kubernetes_secret resource (after configuring the Kubernetes provider):
+
+                resource "kubernetes_secret" "app_secret" {
+                metadata {
+                    name = "my-secret"
+                }
+
+                data = {
+                    password = base64encode("s3cr3t123")
+                }
+
+                type = "Opaque"
+                }
+✅ Tip: Do not store secrets in plaintext — instead, fetch them from encrypted sources or pass at runtime.
+
+
+27. How do you configure Workload Identity in Terraform for GKE?
+
+Answer:
+
+        Steps:
+
+                Create GCP service account.
+
+                Bind Kubernetes service account to it.
+
+                Annotate KSA with iam.gke.io/gcp-service-account.
+
+                        Example:
+
+                        resource "google_service_account" "gsa" {
+                        account_id   = "app-sa"
+                        display_name = "App GSA"
+                        }
+
+                resource "kubernetes_service_account" "ksa" {
+                metadata {
+                    name      = "app-ksa"
+                    namespace = "default"
+                    annotations = {
+                    "iam.gke.io/gcp-service-account" = google_service_account.gsa.email
+                    }
+                }
+                }
+
+                IAM binding:
+
+                resource "google_service_account_iam_member" "workload_identity_binding" {
+                service_account_id = google_service_account.gsa.name
+                role               = "roles/iam.workloadIdentityUser"
+                member             = "serviceAccount:${var.project_id}.svc.id.goog[default/app-ksa]"
+                }
+
+
+28. How do you troubleshoot a failed terraform apply?
+
+Answer:
+
+        Read the error message — often points directly to the failure.
+
+        Use terraform plan to simulate changes beforehand.
+
+        Isolate the block causing the issue and run it separately.
+
+        Use TF_LOG=DEBUG for deep debugging.
+
+
+29. What are depends_on and why are they important?
+
+Answer:
+    
+    Terraform infers resource dependencies automatically, but depends_on enforces explicit dependencies.
+
+    Use case:
+            
+            Ensure a VPC exists before creating a GKE cluster inside it.
+
+                    resource "google_container_cluster" "primary" {
+                    name     = "my-cluster"
+                    location = var.region
+
+                    depends_on = [google_compute_network.my_vpc]
+                    }
+
+
+30. How do you avoid resource recreation when a minor field changes (e.g., label)?
+
+Answer:
+
+        Use the lifecycle { ignore_changes = [...] } block:
+
+                resource "google_container_cluster" "primary" {
+                name     = "cluster"
+
+                lifecycle {
+                    ignore_changes = [resource_labels]
+                }
+                }
+               
+                This is especially useful when:
+
+                Labels are modified manually by other tools
+
+                You want Terraform to skip non-critical drift
+
+
+31. How do you manage multiple environments (dev/staging/prod) in Terraform?
+Answer:
+
+        You can use either:
+
+                    Separate directories per environment, or
+
+                    Workspaces (terraform workspace)
+
+                    Preferred for GKE: Separate directories with variable overrides:
+
+                                envs/
+                                ├── dev/
+                                │   ├── main.tf
+                                │   ├── terraform.tfvars
+                                ├── prod/
+                                │   ├── main.tf
+                                │   ├── terraform.tfvars
+
+        Each environment gets its own backend, state file, and credentials.
+
+
+32. What are Terraform Workspaces and when should you use them?*
+
+Answer:
+
+    Workspaces isolate state within the same configuration. Useful for managing identical infra across multiple environments if environments are nearly identical.
+
+Commands:
+
+            terraform workspace new dev
+            terraform workspace select prod
+
+⚠️ Drawback: Doesn't separate code or variables as clearly as directories.
+
+
+33. How do you integrate Terraform with CI/CD pipelines for GKE?
+
+Answer:
+
+    Typical pipeline:
+
+            Lint & validate: terraform fmt and terraform validate
+
+            Plan stage: terraform plan -out=plan.out
+
+            Approval step: Optional manual approval
+
+            Apply stage: terraform apply plan.out
+
+    GKE CI/CD example (GitHub Actions):
+
+                jobs:
+                terraform:
+                    runs-on: ubuntu-latest
+                    steps:
+                    - run: terraform init
+                    - run: terraform plan -out=tfplan
+                    - run: terraform apply tfplan
+
+    ✅ Use google-application-credentials securely with GitHub Secrets.
+
+
+34. How do you create a private GKE cluster using Terraform?
+
+Answer:
+
+        Use private_cluster_config in your cluster resource:
+
+                    resource "google_container_cluster" "private" {
+                    name     = "private-gke"
+                    location = "us-central1"
+
+                    private_cluster_config {
+                        enable_private_nodes    = true
+                        enable_private_endpoint = false
+                        master_ipv4_cidr_block  = "172.16.0.0/28"
+                    }
+
+                    master_authorized_networks_config {
+                        cidr_blocks {
+                        cidr_block   = "203.0.113.0/24"
+                        display_name = "corp"
+                        }
+                    }
+                    }
+
+        ✅ Also configure Cloud NAT to allow node egress.
+
+
+ 35. What are taints, and how can you use them in Terraform for GKE node pools?
+
+Answer:
+
+        Taints prevent general workloads from scheduling on specific nodes unless tolerations are defined.
+
+            Example:
+                
+                taint {
+                key    = "dedicated"
+                value  = "gpu"
+                effect = "NO_SCHEDULE"
+                }
+
+        This ensures only workloads with a matching toleration can run on the node pool.
+
+
+36. How do you create node pools with different machine types using Terraform?
+
+Answer:
+
+        Use the node_config block with separate google_container_node_pool resources:
+
+                    resource "google_container_node_pool" "gpu_pool" {
+                    name       = "gpu-pool"
+                    cluster    = google_container_cluster.primary.name
+                    location   = var.region
+
+                    node_config {
+                        machine_type = "n1-standard-4"
+                        accelerators {
+                        type  = "nvidia-tesla-k80"
+                        count = 1
+                        }
+                    }
+
+                    autoscaling {
+                        min_node_count = 0
+                        max_node_count = 3
+                    }
+                    }
+
+
+37. How do you partially apply changes using Terraform (target specific resources)?
+
+Answer:
+
+    Use the -target flag:
+
+                terraform apply -target=google_container_cluster.primary
+
+    ⚠️ Use with caution in production. May cause dependency inconsistencies.
+
+
+38. What is terraform refresh and when would you use it?
+
+Answer:
+
+        terraform refresh updates the state file to match actual infrastructure without making changes.
+
+        Use case: If resources were changed outside Terraform (e.g., manually via GCP Console).
+
+            terraform refresh
+
+
+39. How do you manage resource drift in Terraform, especially with GKE?
+
+Answer:
+
+            Run terraform plan regularly.
+
+            Use terraform refresh to sync state.
+
+            Use tools like driftctl or infracost to detect drift.
+
+            Lock down manual changes using IAM.
+
+
+40. How do you safely rotate credentials/secrets stored in Terraform-managed Kubernetes secrets?
+
+Answer:
+
+            Use CI/CD or Vault to fetch updated secrets.
+
+            Trigger Terraform to recreate secrets:
+
+            Use terraform taint kubernetes_secret.mysecret to force recreation.
+
+            Use kubectl rollout restart if workloads depend on the secret.
+
+            ✅ For zero-downtime: mount secrets as volumes + use rollout strategies.
+
+
+41. What is a dynamic block in Terraform? When should you use it?
+
+Answer:
+
+    dynamic blocks generate repeatable nested content (like tags, tolerations, etc.) based on input variables or lists/maps.
+
+        Example: Adding tolerations dynamically to a GKE node pool
+
+                variable "tolerations" {
+                default = [
+                    { key = "dedicated", value = "gpu", effect = "NoSchedule" },
+                    { key = "env", value = "prod", effect = "NoExecute" }
+                ]
+                }
+
+                dynamic "taint" {
+                for_each = var.tolerations
+                content {
+                    key    = taint.value["key"]
+                    value  = taint.value["value"]
+                    effect = taint.value["effect"]
+                }
+                }
+
+
+42. What’s the difference between count and for_each in Terraform?
+
+Feature	count	for_each
+Index-based	Yes	No (uses keys from maps/sets)
+Duplicate values allowed	Yes	No (must be unique keys)
+Use case	Create multiple of the same resource	Create resources per unique key/value
+
+Example with for_each:
+
+resource "google_container_node_pool" "named" {
+  for_each = toset(["frontend", "backend"])
+  name     = "${each.key}-pool"
+}
+
+
+43. How can you prevent accidental resource deletion in Terraform?
+
+Answer:
+
+    Use the prevent_destroy lifecycle rule.
+
+        Example:
+
+                        resource "google_container_cluster" "critical" {
+                        name = "production"
+
+                        lifecycle {
+                            prevent_destroy = true
+                        }
+                        }
+
+    Terraform will throw an error if you try to delete it.
+
+
+44. How do you use null_resource and local-exec for custom provisioning?
+
+Answer:
+
+    null_resource is a Terraform workaround to run scripts or commands after apply.
+
+        Example:
+
+                resource "null_resource" "kubeconfig" {
+                provisioner "local-exec" {
+                    command = "gcloud container clusters get-credentials mycluster"
+                }
+
+                triggers = {
+                    cluster_id = google_container_cluster.mycluster.id
+                }
+                }
+
+    Useful for post-deployment setup or provisioning.
+
+
+45. How does Terraform handle dependencies between resources?
+
+Answer:
+
+Terraform automatically builds a dependency graph from references.
+
+    Implicit Dependency:
+
+
+            node_config {
+            oauth_scopes = [google_service_account.my_sa.email]
+            }
+
+    Explicit Dependency (optional):
+
+            depends_on = [google_service_account.my_sa]
+
+Use depends_on only when Terraform can’t infer the dependency.
+
+
+46. What is the difference between terraform plan and terraform apply?
+
+    Command	Purpose
+
+            terraform plan	Preview changes without applying them
+            terraform apply	Apply the changes from the plan
+
+    Best practice: Always run plan first and save the output (-out=plan.out) before applying.
+
+
+47. How can you manage Terraform modules from private Git repos or registries?
+
+Answer:
+
+    Use the source parameter with authentication:
+
+    module "gke" {
+    source = "git::https://github.com/myorg/gke-module.git"
+    token  = var.github_token
+    }
+
+    Or use Terraform Cloud Private Module Registry with access controls.
+
+
+48. How do you handle Terraform errors during apply (e.g., quota exceeded, IAM errors)?
+
+Answer:
+
+    Read error logs — Terraform outputs raw GCP/GKE errors.
+
+    Fix manually or automate with retries.
+
+    Break apply into smaller batches (-target or smaller modules).
+
+    Use time_sleep between resources to avoid API throttling.
+
+
+49. How do you test and validate Terraform modules?
+Answer:
+
+    Use terraform validate to check syntax.
+
+    Use terraform plan with test inputs.
+
+    Use tools like:
+
+            Terratest
+
+            kitchen-terraform for automated infra testing
+
+    Create a test GKE project and run terraform destroy afterward.
+
+
+50. What are best practices for Terraform in production GKE deployments?
+
+Key practices:
+
+Area	                        Best Practice
+--------------------------------------------------------------------------------------------------
+State management	Use remote backend (GCS) with locking (GCS+Cloud Storage bucket + DynamoDB)
+Secrets	            Don’t store secrets in code. Use Secret Manager or Vault
+Versioning	        Pin provider and module versions explicitly
+Naming standards	Use predictable and unique resource names
+Drift detection	    Use terraform plan, terraform refresh, and tools like driftctl
+Modular code	    Use reusable, tested modules for GKE, IAM, VPC, etc.

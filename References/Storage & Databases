@@ -1,0 +1,5 @@
+Object storage (GCS), Block storage (PD), File storage (Filestore)
+
+Database choices: Cloud SQL, BigQuery, Spanner, Firestore, etc.
+
+Data residency, backup, replication, and HA
