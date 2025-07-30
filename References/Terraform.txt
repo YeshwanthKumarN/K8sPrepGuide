@@ -2,33 +2,37 @@
 
 Answer:
 
-    Terraform is an open-source Infrastructure as Code (IaC) tool developed by HashiCorp. It allows you to define and provision infrastructure using declarative configuration files (usually .tf files).
+    Terraform is an open-source Infrastructure as Code (IaC) tool developed by HashiCorp. 
+    It allows you to define and provision infrastructure using declarative configuration files 
+    (usually .tf files).
 
     It works in the following stages:
 
-    Write: You define infrastructure in .tf files.
+            Write: You define infrastructure in .tf files.
 
-    Plan: Terraform shows you what changes it will make.
+            Plan: Terraform shows you what changes it will make.
 
-    Apply: Executes the changes and provisions infrastructure.
+            Apply: Executes the changes and provisions infrastructure.
 
-    State: Maintains a state file to track the current infrastructure state.
+            State: Maintains a state file to track the current infrastructure state.
 
-Example:
-Provisioning a GKE cluster:
+    Example:
+                
+                Provisioning a GKE cluster:
 
-    resource "google_container_cluster" "primary" {
-    name     = "gke-cluster"
-    location = "us-central1"
-    initial_node_count = 1
-    }
+                    resource "google_container_cluster" "primary" {
+                    name     = "gke-cluster"
+                    location = "us-central1"
+                    initial_node_count = 1
+                    }
 
 
 2. What are Terraform Providers?
 
 Answer:
 
-    Providers are plugins that interact with APIs of cloud platforms and other services. Each provider manages a specific resource type (e.g., GCP, AWS, Kubernetes).
+    Providers are plugins that interact with APIs of cloud platforms and other services. 
+    Each provider manages a specific resource type (e.g., GCP, AWS, Kubernetes).
 
     In GKE, you'd typically use:
 
@@ -36,45 +40,46 @@ Answer:
 
         kubernetes provider (for Kubernetes resources inside the cluster)
 
-Example:
+        Example:
 
-    provider "google" {
-    project = var.project_id
-    region  = var.region
-    }
+            provider "google" {
+            project = var.project_id
+            region  = var.region
+            }
 
-    provider "kubernetes" {
-    host                   = google_container_cluster.primary.endpoint
-    token                  = data.google_client_config.default.access_token
-    cluster_ca_certificate = base64decode(google_container_cluster.primary.master_auth[0].cluster_ca_certificate)
-    }
+            provider "kubernetes" {
+            host                   = google_container_cluster.primary.endpoint
+            token                  = data.google_client_config.default.access_token
+            cluster_ca_certificate = base64decode(google_container_cluster.primary.master_auth[0].cluster_ca_certificate)
+            }
 
 
 3. What is Terraform State? Why is it important?
 
 Answer:
 
-    Terraform uses a state file (terraform.tfstate) to map your configuration to real infrastructure. It knows what resources exist and how they are configured.
+    Terraform uses a state file (terraform.tfstate) to map your configuration to real infrastructure. 
+    It knows what resources exist and how they are configured.
 
-    Importance:
+        Importance:
 
-        Tracks resource metadata
-        Detects drift
-        Enables diffs during plan and apply
+            Tracks resource metadata
+            Detects drift
+            Enables diffs during plan and apply
 
     Best Practice (GKE context): Always store state remotely (e.g., in GCS) when working in teams.
 
-        terraform {
-        backend "gcs" {
-            bucket  = "gke-terraform-state"
-            prefix  = "terraform/state"
-        }
-        }
+            terraform {
+            backend "gcs" {
+                bucket  = "gke-terraform-state"
+                prefix  = "terraform/state"
+            }
+            }
 
     
 4. What is the difference between terraform plan and terraform apply?
 
-    Command	Purpose
+    Command	Purpose:
         terraform plan	Shows what actions Terraform would take
         terraform apply	Executes the actions (provisions/updates/deletes)
 
@@ -88,7 +93,7 @@ Answer:
 
     You can use:
     
-        Workspaces: Logical partitions of state
+        Workspaces: Useful for a quick simulation of differnt env with the same configuration without complex difference.
 
         Directory structure + variable files: More control over environment-specific configurations
 
@@ -1020,3 +1025,16 @@ Versioning	        Pin provider and module versions explicitly
 Naming standards	Use predictable and unique resource names
 Drift detection	    Use terraform plan, terraform refresh, and tools like driftctl
 Modular code	    Use reusable, tested modules for GKE, IAM, VPC, etc.
+
+
+Wellsfargo interview
+
+1. what is the best place to setup guadriles for a gke cluster?
+
+2. In which scenario we create custom modules?
+
+3. Explain the trust in workload identity
+
+4. Explain Platform and Application Landing zone
+
+5. 

@@ -422,3 +422,20 @@ LimitRange: Default requests/limits for containers.
 Prompt: 
 
     Research and consolidate the 50 most commonly asked questions on kubernetes in the interviews from basic to advanced with neat explaination, if possible with an example too. help me improve my understanding of this subject with your questions, i must be able to digest the most complex scenario based question with ease. I'm setting the hard limit of 50 but feel free to extend if its necessary. preferrably use gke in your examples as my interview is on gke. remember do not compromise this subject, I need to excel it in the interview. we can extend the questions on fleets, or other gke enterprise features later right now focus on kubernetes concepts from design to deploy, scale etc.
+
+
+How trust works in Workload Identity?
+
+Using workload identity, the setup consists of a Kubernetes Service Account (KSA) to impersonate a Google IAM Service Account (GSA) by adding a policy binding to the GSA. Also the trust is configured on the GSA, allowing the KSA to impersonate it via IAM policy:
+
+Pod is running in GKE using a Kubernetes Service Account (KSA).
+
+GKE uses the Workload Identity Federation mechanism to assert identity of the pod's KSA.
+
+It issues a federated token, which proves the pod is using the specific KSA.
+
+This federated identity is trusted by Google IAM, because of the IAM binding on the GSA.
+
+The federated token is exchanged for a Google OAuth 2.0 access token for the GSA.
+
+The pod can now use this access token to access GCP services like Cloud Storage, BigQuery, etc., as the GSA.
